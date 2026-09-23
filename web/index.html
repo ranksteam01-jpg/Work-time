@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#070a12" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Attendance" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/styles.css" />
+  <title>Attendance</title>
+</head>
+<body>
+  <div class="ambient ambient-a"></div>
+  <div class="ambient ambient-b"></div>
+
+  <main class="shell">
+    <section id="loginView" class="auth-card glass hidden" aria-labelledby="loginTitle">
+      <div class="brand-mark" aria-hidden="true"><span></span></div>
+      <p class="eyebrow">PRIVATE ATTENDANCE</p>
+      <h1 id="loginTitle">เข้าสู่ระบบ</h1>
+      <p class="muted">ข้อมูลเวลาทำงานส่วนตัวของคุณ</p>
+      <form id="loginForm" autocomplete="on">
+        <label class="field">
+          <span>รหัสผ่าน</span>
+          <input id="passwordInput" type="password" autocomplete="current-password" required />
+        </label>
+        <button class="primary full" type="submit">ปลดล็อก</button>
+        <p id="loginError" class="form-error" role="alert"></p>
+      </form>
+    </section>
+
+    <div id="appView" class="hidden">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">ATTENDANCE // V1</p>
+          <h1>Work Pulse</h1>
+        </div>
+        <button id="logoutBtn" class="icon-btn" aria-label="ออกจากระบบ" title="ออกจากระบบ">↗</button>
+      </header>
+
+      <section class="today-card glass">
+        <div class="today-head">
+          <div>
+            <p class="eyebrow">TODAY</p>
+            <h2 id="todayDate">—</h2>
+          </div>
+          <div id="statusPill" class="status-pill idle"><span></span><b>READY</b></div>
+        </div>
+
+        <div class="time-grid">
+          <div class="time-block">
+            <span>IN</span>
+            <strong id="clockInValue">—</strong>
+          </div>
+          <div class="divider"></div>
+          <div class="time-block">
+            <span>OUT</span>
+            <strong id="clockOutValue">—</strong>
+          </div>
+        </div>
+
+        <div id="elapsedWrap" class="elapsed hidden">
+          <span>ELAPSED</span>
+          <strong id="elapsedValue">00:00</strong>
+        </div>
+
+        <div class="hero-actions">
+          <button id="clockInBtn" class="hero-btn in-btn" type="button">
+            <span class="hero-orb"></span>
+            <span class="hero-copy"><small>START</small><b>CLOCK IN</b></span>
+          </button>
+          <button id="clockOutBtn" class="hero-btn out-btn" type="button">
+            <span class="hero-orb"></span>
+            <span class="hero-copy"><small>FINISH</small><b>CLOCK OUT</b></span>
+          </button>
+        </div>
+      </section>
+
+      <section class="history-section">
+        <div class="section-title">
+          <div>
+            <p class="eyebrow">HISTORY</p>
+            <h2>ประวัติลงเวลา</h2>
+          </div>
+          <button id="refreshBtn" class="ghost-btn" type="button">รีเฟรช</button>
+        </div>
+
+        <div class="filter-card glass">
+          <label class="field compact"><span>จากวันที่</span><input id="fromDate" type="date" /></label>
+          <label class="field compact"><span>ถึงวันที่</span><input id="toDate" type="date" /></label>
+          <button id="applyFilterBtn" class="secondary" type="button">แสดงผล</button>
+          <button id="copyBtn" class="copy-btn" type="button"><span>⧉</span> COPY REPORT</button>
+        </div>
+
+        <div id="historyList" class="history-list" aria-live="polite"></div>
+        <div id="emptyState" class="empty glass hidden">ยังไม่มีข้อมูลในช่วงวันที่นี้</div>
+      </section>
+    </div>
+  </main>
+
+  <div id="confirmModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+    <div class="modal-card glass">
+      <p class="eyebrow">CONFIRM</p>
+      <h3 id="confirmTitle">มีเวลานี้อยู่แล้ว</h3>
+      <p id="confirmText" class="muted"></p>
+      <div class="modal-actions">
+        <button id="confirmCancel" class="ghost-btn" type="button">ยกเลิก</button>
+        <button id="confirmReplace" class="danger-soft" type="button">แทนที่ด้วยเวลาปัจจุบัน</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="editModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="editTitle">
+    <div class="modal-card glass">
+      <p class="eyebrow">EDIT RECORD</p>
+      <h3 id="editTitle">แก้ไขเวลา</h3>
+      <form id="editForm">
+        <label class="field"><span>วันที่</span><input id="editDate" type="date" required /></label>
+        <div class="two-col">
+          <label class="field"><span>เวลาเข้า</span><input id="editIn" type="time" /></label>
+          <label class="field"><span>เวลาออก</span><input id="editOut" type="time" /></label>
+        </div>
+        <p id="editError" class="form-error" role="alert"></p>
+        <div class="modal-actions">
+          <button id="editCancel" class="ghost-btn" type="button">ยกเลิก</button>
+          <button class="primary" type="submit">บันทึก</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite">✓ คัดลอกแล้ว</div>
+  <script src="/report.js" defer></script>
+  <script src="/app.js" defer></script>
+</body>
+</html>
