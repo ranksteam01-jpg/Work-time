@@ -13,7 +13,7 @@
     {
       "binding": "DB",
       "database_name": "attendance-web-v1",
-      "database_id": "PASTE_D1_DATABASE_ID_HERE",
+      "database_id": "ebb2fca0-06f2-41ec-9a4a-eeadff55301a",
       "migrations_dir": "migrations"
     }
   ],
