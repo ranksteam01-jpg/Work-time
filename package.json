@@ -1,0 +1,16 @@
+{
+  "name": "attendance-web-v1-cloudflare",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Attendance Web V1 migrated to Cloudflare Workers + D1",
+  "scripts": {
+    "dev": "wrangler dev",
+    "test": "node --test tests/*.test.mjs && node tests/test_report_format.cjs",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
+    "deploy": "npm run db:migrate:remote && wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.102.0"
+  }
+}

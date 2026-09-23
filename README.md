@@ -1,108 +1,179 @@
-# Attendance Web V1
+# Attendance Web V1 — Cloudflare Workers + D1
 
-เว็บลงเวลาเข้า/ออกส่วนตัวแบบ mobile-first สำหรับ iPhone และ desktop ใช้ Python standard library + SQLite โดยไม่ต้องติดตั้ง package เพิ่ม
+Attendance Web V1 migrated from the original Python + local SQLite server to **Cloudflare Workers + Cloudflare D1** while preserving the existing V1 frontend and API behavior.
 
-## ฟีเจอร์
+## Architecture
 
-- Clock In / Clock Out ด้วยเวลาปัจจุบันฝั่งเซิร์ฟเวอร์
-- แสดงสถานะวันนี้และเวลาที่ผ่านไปขณะกำลังทำงาน
-- แก้ไขวัน/เวลา และลบรายการได้
-- ป้องกันการเขียนทับ Clock In / Clock Out เดิมโดยต้องยืนยันก่อน
-- History + กรองช่วงวันที่
-- Copy Report สำหรับ LINE รูปแบบ พ.ศ. 2 หลัก เช่น `23/9/69 เข้า 11:03น.`
-- แสดงวันที่ไม่ครบ (ขาดเวลาเข้า/ออก)
-- Single-user password protection ด้วย signed session cookie
-- SQLite เก็บข้อมูลบนเซิร์ฟเวอร์
-- PWA metadata + static service worker
-- UI ภาษาไทย รองรับ iPhone safe area
+- **Cloudflare Worker** — API, authentication, signed session cookies
+- **Cloudflare D1** — persistent attendance records
+- **Workers Static Assets** — serves the existing `web/` frontend/PWA
+- **GitHub** — source repository and Cloudflare Git deployment
+- **No paid service is required** for normal personal use within Cloudflare Free limits.
 
-## Requirements
+The original V1 UI files (`index.html`, `styles.css`, `app.js`, `report.js`, PWA manifest/service worker/icon) were not redesigned or rewritten during this migration.
 
-- Python 3.9+ (แนะนำ 3.11+)
-- ไม่ต้อง `pip install`
+## Project layout
 
-## เริ่มใช้งาน
+```text
+attendance_web_v1/
+├── src/index.mjs                 # Cloudflare Worker API/auth
+├── migrations/0001_initial.sql   # deterministic D1 schema
+├── web/                          # unchanged V1 frontend + PWA
+│   ├── index.html
+│   ├── styles.css
+│   ├── app.js
+│   ├── report.js
+│   ├── manifest.webmanifest
+│   ├── sw.js
+│   ├── icon.svg
+│   └── _headers                  # security headers for static assets
+├── tests/
+├── wrangler.jsonc
+├── package.json
+├── .dev.vars.example
+├── .env.example
+└── .gitignore
+```
 
-1. คัดลอกค่าจาก `.env.example` ไปตั้งเป็น environment variables ของเครื่อง/บริการโฮสต์
-2. สร้าง secret แบบสุ่ม:
+## D1 schema
+
+```sql
+CREATE TABLE IF NOT EXISTS attendance (
+  date TEXT PRIMARY KEY NOT NULL,
+  clock_in TEXT,
+  clock_out TEXT,
+  updated_at TEXT NOT NULL
+);
+```
+
+`date` is already the primary-key index, so no redundant second date index is added.
+
+## Required Cloudflare secrets
+
+Create these as **Secret** variables in the Cloudflare Worker dashboard. Never commit their real values.
+
+- `ATTENDANCE_PASSWORD`
+- `ATTENDANCE_SECRET`
+
+`ATTENDANCE_SECRET` must be at least 32 characters. The app fails closed with HTTP 503 if required production configuration is missing.
+
+Non-secret settings are already in `wrangler.jsonc`:
+
+- `ATTENDANCE_TIMEZONE=Asia/Bangkok`
+- `ATTENDANCE_SESSION_HOURS=168`
+
+## iPhone-first deployment using GitHub + Cloudflare dashboard
+
+### A. Put the project in GitHub
+
+1. Download and extract the delivered ZIP in the iPhone **Files** app.
+2. In Safari, sign in to GitHub and create a new **private** repository, for example `attendance-web-v1`.
+3. Upload the contents of the extracted `attendance_web_v1` folder into the repository. Keep the folder structure exactly as delivered (`src`, `migrations`, `web`, `tests`).
+4. Do **not** upload `.dev.vars` or any file containing real passwords/secrets. The included `.gitignore` blocks the normal secret filenames.
+
+> GitHub's mobile upload UI can be awkward with folders. If Safari does not let you select folders directly, create the four folders in the repository first and upload their contained files into the matching folder. Do not flatten the project structure.
+
+### B. Create the free D1 database
+
+1. Open the Cloudflare dashboard.
+2. Go to **D1 SQL Database**.
+3. Tap **Create Database**.
+4. Database name: `attendance-web-v1`.
+5. Location: Asia-Pacific is appropriate for Thailand if the dashboard offers a location hint; it is optional.
+6. Create the database.
+7. Copy the database **ID / UUID** shown by Cloudflare.
+
+### C. Put the D1 ID into GitHub
+
+1. In the GitHub repository, open `wrangler.jsonc`.
+2. Tap edit.
+3. Replace only:
+
+```text
+PASTE_D1_DATABASE_ID_HERE
+```
+
+with the D1 database ID copied from Cloudflare.
+4. Commit the change to the main branch.
+
+The binding name must remain `DB` because the Worker code and migration command use that binding.
+
+### D. Import the GitHub repository into Cloudflare Workers
+
+1. Cloudflare dashboard → **Workers & Pages**.
+2. Tap **Create application**.
+3. Choose **Import a repository** / connect GitHub.
+4. Select the `attendance-web-v1` repository.
+5. Root directory: repository root.
+6. Build command: leave blank.
+7. Deploy command: `npm run deploy`.
+8. Save and deploy.
+
+`npm run deploy` first runs the D1 migration against the `DB` binding and then runs `wrangler deploy`. Re-running it is safe: Wrangler records applied D1 migrations and only applies unapplied files.
+
+### E. Add the two secrets
+
+After the Worker exists:
+
+1. Cloudflare dashboard → **Workers & Pages** → your Worker → **Settings**.
+2. Under **Variables and Secrets**, tap **Add**.
+3. Choose type **Secret**.
+4. Add `ATTENDANCE_PASSWORD` with your private login password.
+5. Add `ATTENDANCE_SECRET` with a privately generated random value of at least 32 characters.
+6. Tap **Deploy** to apply the secret bindings.
+
+Do not put either value into `wrangler.jsonc`, GitHub, README, screenshots, or chat messages.
+
+### F. Open and verify
+
+1. Open the Worker's `workers.dev` URL shown in Cloudflare.
+2. Confirm the login page appears.
+3. Log in with your `ATTENDANCE_PASSWORD`.
+4. Test Clock In, refresh, Clock Out, edit/delete, range filter, and Copy Report.
+5. On iPhone Safari, use **Share → Add to Home Screen** if you want the existing PWA experience.
+
+### G. Future updates
+
+Push/commit a change to the connected GitHub branch. Cloudflare Workers Builds can automatically build/deploy connected repositories. Keep the deployment command as `npm run deploy` so any future D1 migration is applied before Worker deployment.
+
+## Local development (optional, computer)
+
+Install dependencies:
 
 ```bash
-python -c "import secrets; print(secrets.token_urlsafe(48))"
+npm install
 ```
 
-3. ตั้งค่าอย่างน้อย:
+Copy `.dev.vars.example` to `.dev.vars` and put local-only secret values there. Never commit `.dev.vars`.
+
+Apply migrations and start local Worker/D1:
 
 ```bash
-export ATTENDANCE_PASSWORD='your-strong-password'
-export ATTENDANCE_SECRET='your-random-secret-at-least-32-characters'
-export ATTENDANCE_TIMEZONE='Asia/Bangkok'
+npm run db:migrate:local
+npm run dev
 ```
 
-4. รัน:
+Run deterministic Node tests:
 
 ```bash
-python server.py
+npm test
 ```
 
-5. เปิด `http://SERVER_IP:8080`
+## Data from the old SQLite deployment
 
-ฐานข้อมูลจะถูกสร้างอัตโนมัติที่ `data/attendance.db` (หรือ path ที่กำหนดใน `ATTENDANCE_DB`)
+The supplied V1 ZIP did not contain a populated `attendance.db`, so there were no historical rows available to import into D1 during this migration. The D1 schema preserves the V1 fields and API behavior. If an old production SQLite database exists elsewhere, keep it until its records are exported/imported and verified.
 
-## Production deployment
+## Free-tier design notes
 
-แนะนำให้วางแอปหลัง HTTPS reverse proxy เช่น Caddy / Nginx หรือบริการโฮสต์ที่มี HTTPS ให้โดยอัตโนมัติ
+- Static frontend files are served by **Workers Static Assets** and do not invoke the Worker for normal matching asset requests.
+- `assets.run_worker_first` is limited to `/api/*`, so only API traffic consumes Worker invocations.
+- Attendance is a tiny table keyed by `date`, keeping D1 row reads/writes very low for personal use.
+- No Containers, Durable Objects, R2, Queue, external database, VPS, or paid add-on is used.
 
-Production environment ที่สำคัญ:
+## Security notes
 
-```bash
-ATTENDANCE_PASSWORD=<private-password>
-ATTENDANCE_SECRET=<long-random-secret>
-ATTENDANCE_TIMEZONE=Asia/Bangkok
-ATTENDANCE_SECURE_COOKIE=1
-HOST=127.0.0.1
-PORT=8080
-```
-
-ถ้า reverse proxy รันคนละ container ให้ตั้ง `HOST=0.0.0.0` ตาม topology ของระบบ
-
-ตัวอย่าง Caddyfile:
-
-```caddy
-attendance.example.com {
-    reverse_proxy 127.0.0.1:8080
-}
-```
-
-จากนั้นเปิดผ่าน `https://attendance.example.com`
-
-> อย่า commit รหัสผ่านหรือ secret จริงลง Git / source code
-
-## Backup
-
-สำรองไฟล์ SQLite ที่กำหนดโดย `ATTENDANCE_DB` เช่น `data/attendance.db` เป็นระยะ
-
-## Tests
-
-```bash
-python -m unittest -v tests.test_app
-```
-
-Tests จะรันเซิร์ฟเวอร์จริงชั่วคราวกับฐานข้อมูล temporary และตรวจ API หลัก
-
-ทดสอบ formatter รายงาน (ต้องมี Node.js):
-
-```bash
-node tests/test_report_format.js
-```
-
-Optional frontend smoke test (ต้องมี Playwright Python และ Chromium; ไม่จำเป็นต่อ runtime ของแอป):
-
-```bash
-CHROMIUM_PATH=/path/to/chromium python tests/test_frontend_smoke.py
-```
-
-## Notes
-
-- เวลา Clock In/Out ใช้ timezone ที่ตั้งใน `ATTENDANCE_TIMEZONE` ไม่อิง timezone ของ browser
-- Service worker cache เฉพาะไฟล์หน้าเว็บ; API attendance ไม่ถูก cache
-- iPhone: เปิดผ่าน HTTPS แล้วใช้ Share → Add to Home Screen ได้
+- Signed HttpOnly + Secure + SameSite=Strict session cookie.
+- Password and signing secret are Worker secrets, not source variables.
+- API responses and static assets include security headers.
+- Duplicate Clock In/Out returns `409 already_exists`; replacement occurs only after the existing V1 confirmation flow sends `replace: true`.
+- Manual correction and delete remain available.

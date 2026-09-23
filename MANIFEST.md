@@ -1,28 +1,51 @@
-# Attendance Web V1 — Package Manifest
+# Attendance Web V1 — Cloudflare Migration Manifest
 
 ## Runtime
-- `server.py` — standard-library HTTP server, signed session auth, SQLite API
-- `web/index.html` — mobile-first UI
-- `web/styles.css` — futuristic dark/glass visual system and responsive layout
-- `web/app.js` — attendance UI behavior and API integration
-- `web/report.js` — Thai LINE report formatter
-- `web/manifest.webmanifest` — PWA metadata
-- `web/sw.js` — static asset service worker
-- `web/icon.svg` — app icon
 
-## Configuration / docs
-- `.env.example` — environment variable template (contains no real credentials)
-- `.gitignore` — excludes local secrets/database/cache
-- `README.md` — setup, deployment, backup, and test instructions
-- `TEST_REPORT.md` — checks actually executed for this delivery
+- `src/index.mjs` — Cloudflare Worker API, auth, signed sessions, D1 access
+- `wrangler.jsonc` — Worker / static assets / D1 binding configuration
+- `package.json` — Wrangler dev/test/migration/deploy scripts
+
+## Database
+
+- `migrations/0001_initial.sql` — deterministic D1 attendance schema
+
+## Existing frontend preserved
+
+- `web/index.html`
+- `web/styles.css`
+- `web/app.js`
+- `web/report.js`
+- `web/manifest.webmanifest`
+- `web/sw.js`
+- `web/icon.svg`
+- `web/_headers` — new Cloudflare static-asset security headers
+
+## Secrets / local config examples
+
+- `.dev.vars.example`
+- `.env.example`
+- `.gitignore`
+
+No real secret value is included.
 
 ## Tests
-- `tests/test_app.py` — backend HTTP/SQLite integration tests
-- `tests/test_report_format.js` — exact LINE copy-format test
-- `tests/test_frontend_smoke.py` — real Chromium frontend smoke test with mocked HTTP layer
-- `tests/mobile_preview.png` — 390px-wide rendered mobile test capture
 
-## Data
-- `data/.gitkeep` — database directory placeholder
-- No live database is included.
-- No real password, secret, API key, or credential is included.
+- `tests/worker.test.mjs`
+- `tests/config.test.mjs`
+- `tests/helpers/d1-mock.mjs`
+- `tests/test_report_format.cjs`
+- `tests/test_frontend_smoke.py`
+- `tests/mobile_preview.png`
+
+## Documentation
+
+- `README.md`
+- `TEST_REPORT.md`
+- `MANIFEST.md`
+
+## Removed obsolete production infrastructure
+
+- `server.py` — replaced by Cloudflare Worker
+- `data/` local SQLite production directory — replaced by Cloudflare D1
+- `tests/test_app.py` — Python-server-specific integration test replaced by Worker/D1 integration tests

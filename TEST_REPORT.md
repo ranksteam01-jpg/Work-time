@@ -1,25 +1,54 @@
-# Attendance Web V1 — Test Report
+# Attendance Web V1 — Cloudflare Migration Test Report
 
-Executed on 2026-09-23 in the build environment.
+Date: 2026-09-23
 
-## PASS — Backend integration (`python -m unittest -v tests.test_app`)
+## Executed
 
-- Unauthorized API access returns HTTP 401.
-- Clock In creates today's record.
-- Duplicate Clock In returns HTTP 409 and does not silently overwrite.
-- Clock Out updates today's record.
-- Duplicate Clock Out returns HTTP 409 and does not silently overwrite.
-- A second authenticated HTTP client reads the same server-persisted SQLite data.
-- Manual edit works.
-- Date-range filtering works.
-- Delete works.
-- Invalid date/time input returns HTTP 400 and the server continues responding.
+### Worker/D1 compatibility tests
 
-Result: 4 tests, PASS.
+Command:
 
-## PASS — Report formatter (`node tests/test_report_format.js`)
+```bash
+node --test tests/*.test.mjs
+```
 
-Verified exact output contract:
+Result: **PASS — 8/8 tests**
+
+Verified:
+
+- D1-compatible migration schema and required columns
+- unauthorized API access blocked
+- invalid login rejected
+- valid login creates Secure / HttpOnly / SameSite=Strict session
+- authenticated session recognized
+- Clock In creates attendance row
+- duplicate Clock In returns 409 unless explicit replace is sent
+- Clock Out updates the row
+- duplicate Clock Out returns 409
+- persistence across subsequent authenticated requests using the same database
+- Today API shape and Asia/Bangkok server timestamp
+- manual edit
+- history retrieval
+- date-range filtering
+- delete
+- invalid action / invalid date range / invalid record handling
+- missing secrets fail closed
+- Wrangler config does not commit secret values
+- no paid-only service binding introduced
+
+The D1 test adapter executes the production SQL against SQLite using Node's built-in `node:sqlite`. Cloudflare D1 uses SQLite's query engine, but these are not remote Cloudflare D1 production tests.
+
+### Thai LINE report formatter
+
+Command:
+
+```bash
+node tests/test_report_format.cjs
+```
+
+Result: **PASS**
+
+Exact verified output:
 
 ```text
 23/9/69 เข้า 11:03น.
@@ -29,28 +58,50 @@ Verified exact output contract:
 24/9/69 ออก 21:22น.
 ```
 
-Result: PASS.
+### Frontend mobile smoke test
 
-## PASS — Frontend Chromium smoke (`python tests/test_frontend_smoke.py`)
+Command executed in the build environment:
 
-The real HTML/CSS/JavaScript frontend was executed in headless Chromium with the network layer mocked because the build environment blocks Chromium navigation to localhost.
+```bash
+python tests/test_frontend_smoke.py
+```
 
-Verified:
+Result: **PASS**
 
-- Thai UI text renders.
-- 390×844 mobile viewport has no horizontal overflow.
-- Clock In/Out hero buttons render at 100px height.
-- Copy Report touch target renders at 48px height.
-- Clock In UI updates.
-- Duplicate Clock In opens confirmation modal.
-- Clock Out UI updates to COMPLETED.
-- Copy Report writes the exact Thai report text.
-- Edit UI updates a record.
-- Delete UI removes a record and shows empty state.
-- No JavaScript page errors were emitted during the smoke flow.
+Chromium viewport: 390 × 844
 
-Result: PASS.
+- no horizontal overflow (`scrollWidth=390`, `clientWidth=390`)
+- Clock In button height 100 px
+- Clock Out button height 100 px
+- Copy button height 48 px
+- Clock In frontend flow
+- duplicate confirmation modal
+- Clock Out frontend flow
+- completed status
+- Thai copy report
+- edit
+- delete
+- no frontend page errors in the smoke scenario
 
-## Environment limitation
+### Original UI preservation
 
-Direct end-to-end Chromium navigation to the local HTTP server was attempted but blocked by the environment with `ERR_BLOCKED_BY_ADMINISTRATOR`. Backend HTTP behavior and frontend browser behavior were therefore tested separately as described above.
+SHA-256 comparison against the supplied V1 ZIP: **PASS / UNCHANGED** for:
+
+- `web/index.html`
+- `web/styles.css`
+- `web/app.js`
+- `web/report.js`
+- `web/manifest.webmanifest`
+- `web/sw.js`
+- `web/icon.svg`
+
+Only `web/_headers` was added for Cloudflare static-asset security headers.
+
+## Not executed
+
+- `wrangler dev` with the real Cloudflare runtime: unavailable because Wrangler could not be downloaded in this execution environment.
+- remote D1 migration against the Owner's Cloudflare account: not executed because no Owner Cloudflare credentials/database ID were provided.
+- production deployment to `workers.dev`: not executed.
+- live production login/Clock In/Clock Out on Cloudflare: not executed.
+
+Production deployment must therefore **not** be labeled PASS until the Owner performs the README deployment steps and exercises the deployed URL.
